@@ -1,6 +1,6 @@
 #!/bin/bash
 
-v_aniyomi_mpv_tag=1.18.n-chimahon.2
-v_aniyomi_mpv_commit=6e2b0827e837df6f3414e9530fd547bd867c6820
+v_aniyomi_mpv_tag=1.18.n-chimahon.3
+v_aniyomi_mpv_commit=8f840c1a0b961280ea199104d905bc9567de758f
 v_ffmpeg_reference_commit=ea3d24bbe3c58b171e55fe2151fc7ffaca3ab3d2
 v_cpu_features_commit=936b9ab5515dead115606559502e3864958f7f6e
