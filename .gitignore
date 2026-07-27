@@ -1,5 +1,9 @@
 /.tmp/
 /*.log
 /prebuilt/
+/aniyomi-mpv-lib/
+/src/
+/android/libs/
+/android/obj/
 .DS_Store
 .idea

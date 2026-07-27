@@ -5,6 +5,7 @@ export BASEDIR="$(pwd)"
 export FFMPEG_KIT_BUILD_TYPE="android"
 source "${BASEDIR}"/scripts/variable.sh
 source "${BASEDIR}"/scripts/function-${FFMPEG_KIT_BUILD_TYPE}.sh
+source "${BASEDIR}"/scripts/chimahon-native-lock.sh
 
 # SET DEFAULTS SETTINGS
 enable_default_android_architectures
@@ -12,8 +13,17 @@ enable_main_build
 
 # DOWNLOAD SDK & NDK FROM ANIYOMI-MPV-LIB
 echo -n -e "\nDownloading aniyomi-mpv-lib dependencies"
-v_aniyomi_mpv=1.18.n
-git clone https://github.com/aniyomiorg/aniyomi-mpv-lib.git -b $v_aniyomi_mpv --depth 1 1>>/dev/null 2>&1
+if [[ ! -d aniyomi-mpv-lib ]]; then
+  mkdir aniyomi-mpv-lib
+  git -C aniyomi-mpv-lib init 1>>/dev/null 2>&1
+  git -C aniyomi-mpv-lib remote add origin https://github.com/bee-san/aniyomi-mpv-lib.git
+  git -C aniyomi-mpv-lib fetch --depth 1 origin "${v_aniyomi_mpv_commit}" 1>>/dev/null 2>&1
+  git -C aniyomi-mpv-lib checkout --detach FETCH_HEAD 1>>/dev/null 2>&1
+fi
+if [[ "$(git -C aniyomi-mpv-lib rev-parse HEAD)" != "${v_aniyomi_mpv_commit}" ]]; then
+  echo -e "\n(*) aniyomi-mpv-lib is not at the pinned revision\n"
+  exit 1
+fi
 cd aniyomi-mpv-lib/buildscripts || return 1
 ./download.sh 1>>/dev/null 2>&1
 
@@ -173,6 +183,10 @@ echo -e "$(date)\n" 1>>"${BASEDIR}"/build.log 2>&1
 
 # DOWNLOAD LIBRARY SOURCES
 downloaded_library_sources "${ENABLED_LIBRARIES[@]}"
+
+if [[ -n ${SOURCE_ARCHIVE_OUTPUT:-} ]]; then
+  "${BASEDIR}"/scripts/package-release-source.sh "${SOURCE_ARCHIVE_OUTPUT}"
+fi
 
 # SAVE ORIGINAL API LEVEL = NECESSARY TO BUILD 64bit ARCHITECTURES
 export ORIGINAL_API=${API}

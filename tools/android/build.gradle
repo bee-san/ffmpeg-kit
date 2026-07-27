@@ -1,5 +1,7 @@
 apply plugin: 'com.android.library'
 
+def libraryVersion = System.getenv("RELEASE_VERSION") ?: "1.18-chimahon.1"
+
 android {
     if (project.android.hasProperty("namespace")) {
         namespace 'com.arthenica.ffmpegkit'
@@ -11,7 +13,7 @@ android {
         minSdk 24
         targetSdk 33
         versionCode 240600
-        versionName "1.18"
+        versionName libraryVersion
         project.archivesBaseName = "ffmpeg-kit"
         consumerProguardFiles "consumer-rules.pro"
     }
