@@ -19,14 +19,12 @@ curl \
   --fail \
   --location \
   --retry 3 \
-  --retry-all-errors \
   --output "$STAGING_DIR/$AAR_NAME" \
   "$RELEASE_URL/$AAR_NAME"
 curl \
   --fail \
   --location \
   --retry 3 \
-  --retry-all-errors \
   --output "$STAGING_DIR/SHA256SUMS" \
   "$RELEASE_URL/SHA256SUMS"
 
