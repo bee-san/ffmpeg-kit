@@ -1,7 +1,7 @@
 apply plugin: 'com.android.library'
 apply plugin: 'maven-publish'
 
-def libraryVersion = System.getenv("RELEASE_VERSION") ?: "1.18-chimahon.1"
+def libraryVersion = System.getenv("RELEASE_VERSION") ?: System.getenv("VERSION") ?: "1.18-chimahon.2"
 
 android {
     if (project.android.hasProperty("namespace")) {
