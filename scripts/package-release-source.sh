@@ -67,7 +67,8 @@ cp -a "$MPV_DEPS" "$SOURCE_ROOT/aniyomi-mpv-lib/buildscripts/deps"
 mkdir -p "$SOURCE_ROOT/aniyomi-mpv-lib/buildscripts/sdk/bin"
 cp "$GAS_PREPROCESSOR" \
   "$SOURCE_ROOT/aniyomi-mpv-lib/buildscripts/sdk/bin/gas-preprocessor.pl"
-cp -a "$SOURCE_DIR" "$SOURCE_ROOT/src"
+mkdir -p "$SOURCE_ROOT/src"
+cp -a "$SOURCE_DIR/." "$SOURCE_ROOT/src/"
 find "$SOURCE_ROOT" -name .git -type f -delete
 find "$SOURCE_ROOT" -name .git -type d -prune -exec rm -rf {} +
 
