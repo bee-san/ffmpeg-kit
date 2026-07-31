@@ -77,8 +77,26 @@ jobs:
             SOURCE-LOCK.txt
             BUILD-PROVENANCE.txt
             SHA256SUMS
-          draft: false
+          draft: true
           prerelease: false
+      - name: publish and verify immutable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release edit "${GITHUB_REF_NAME}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --draft=false
+          for attempt in $(seq 1 15); do
+            if [[ "$(gh api \
+              -H 'X-GitHub-Api-Version: 2026-03-10' \
+              "repos/${GITHUB_REPOSITORY}/releases/tags/${GITHUB_REF_NAME}" \
+              --jq .immutable)" == "true" ]]; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Published release did not become immutable." >&2
+          exit 1
       - name: print build logs
         if: ${{ always() }}
         run: cat build.log
