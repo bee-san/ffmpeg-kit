@@ -51,7 +51,7 @@ android {
 }
 
 def getVersionName = { ->
-    return "1.14"
+    return System.getenv('RELEASE_VERSION') ?: "1.17.4"
 }
 
 def getGroupId = { ->
@@ -71,6 +71,18 @@ publishing {
             version getVersionName()
             artifact("$buildDir/outputs/aar/ffmpeg-kit-release.aar")
             artifact(tasks["sourceJar"])
+            pom.withXml {
+                def dependenciesNode = asNode().appendNode('dependencies')
+                configurations.api.allDependencies.each { dependency ->
+                    if (dependency.group && dependency.name && dependency.version) {
+                        def dependencyNode = dependenciesNode.appendNode('dependency')
+                        dependencyNode.appendNode('groupId', dependency.group)
+                        dependencyNode.appendNode('artifactId', dependency.name)
+                        dependencyNode.appendNode('version', dependency.version)
+                        dependencyNode.appendNode('scope', 'compile')
+                    }
+                }
+            }
         }
     }
 }
