@@ -36,7 +36,7 @@ sed -i \
 grep -qF "${GAS_PREPROCESSOR_COMMIT}" include/download-sdk.sh
 ./download.sh 1>>/dev/null 2>&1
 
-printf '%s  %s\n' "${GAS_PREPROCESSOR_SHA256}" bin/gas-preprocessor.pl | sha256sum -c -
+printf '%s  %s\n' "${GAS_PREPROCESSOR_SHA256}" sdk/bin/gas-preprocessor.pl | sha256sum -c -
 
 git -C deps/dav1d fetch --depth 1 origin "${DAV1D_COMMIT}" 1>>/dev/null 2>&1
 git -C deps/dav1d checkout --detach "${DAV1D_COMMIT}" 1>>/dev/null 2>&1
