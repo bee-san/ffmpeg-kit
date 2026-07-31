@@ -1,0 +1,34 @@
+From e44d76f61f6beaa880e5a18405d62594252bc60c Mon Sep 17 00:00:00 2001
+From: Linke <1102336121@qq.com>
+Date: Fri, 6 Mar 2026 19:58:45 -0700
+Subject: [PATCH] avformat/av1: fix uvlc loop past end of bitstream
+
+When get_bits_left() returns a negative value (bitstream reader already past the end of the buffer), the while condition while (get_bits_left(gb)) evaluates to true since any non-zero int is truthy.
+
+With the safe bitstream reader enabled, get_bits1() returns 0 past the buffer end, so the break never triggers and leading_zeros increments toward INT_MAX.
+
+Change the condition to > 0, consistent with skip_1stop_8data_bits() which already uses <= 0 for the same pattern.
+
+Signed-off-by: Linke <1102336121@qq.com>
+---
+ libavformat/av1.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/libavformat/av1.c b/libavformat/av1.c
+index 35c23dd0b0..1a8a0a2651 100644
+--- a/libavformat/av1.c
++++ b/libavformat/av1.c
+@@ -126,8 +126,8 @@ static inline void uvlc(GetBitContext *gb)
+ {
+     int leading_zeros = 0;
+ 
+-    while (get_bits_left(gb)) {
+-        if (get_bits1(gb))
++    while (leading_zeros < 32) {
++        if (get_bits_left(gb) < 1 || get_bits1(gb))
+             break;
+         leading_zeros++;
+     }
+-- 
+2.50.1
+

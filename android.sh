@@ -25,6 +25,24 @@ awk '{gsub(/ff_file_protocol;/,"ff_file_protocol;\nextern const URLProtocol ff_s
 cat deps/ffmpeg/libavformat/protocols.c.tmp > deps/ffmpeg/libavformat/protocols.c
 echo -e "\nINFO: Enabled custom ffmpeg-kit protocols\n" 1>>"${BASEDIR}"/build.log 2>&1
 
+# APPLY FFMPEG PATCHES
+# Backports that land after the pinned FFmpeg tag but are needed for animated
+# AVIF output. Each patch is skipped when it is already present so that
+# re-running this script against a warm deps/ffmpeg checkout stays safe.
+for FFMPEG_PATCH in "${BASEDIR}"/tools/patches/*.patch; do
+  [[ -e "${FFMPEG_PATCH}" ]] || break
+  FFMPEG_PATCH_NAME="$(basename "${FFMPEG_PATCH}")"
+  if git -C deps/ffmpeg apply --reverse --check "${FFMPEG_PATCH}" 1>>"${BASEDIR}"/build.log 2>&1; then
+    echo -e "INFO: Skipped already-applied FFmpeg patch ${FFMPEG_PATCH_NAME}\n" 1>>"${BASEDIR}"/build.log 2>&1
+    continue
+  fi
+  if ! git -C deps/ffmpeg apply "${FFMPEG_PATCH}" 1>>"${BASEDIR}"/build.log 2>&1; then
+    echo -e "\n(*) Failed to apply FFmpeg patch ${FFMPEG_PATCH_NAME}\n"
+    exit 1
+  fi
+  echo -e "INFO: Applied FFmpeg patch ${FFMPEG_PATCH_NAME}\n" 1>>"${BASEDIR}"/build.log 2>&1
+done
+
 # EXPORT BUILD TOOL LOCATIONS
 export ANDROID_SDK_ROOT="$PWD/sdk/android-sdk-linux"
 export ANDROID_NDK_ROOT="$PWD/sdk/android-ndk-r27c"
