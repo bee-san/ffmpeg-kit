@@ -51,7 +51,7 @@ android {
 }
 
 def getVersionName = { ->
-    return System.getenv('RELEASE_VERSION') ?: "1.17.7.1"
+    return System.getenv('RELEASE_VERSION') ?: "1.17.8.1"
 }
 
 def getGroupId = { ->
