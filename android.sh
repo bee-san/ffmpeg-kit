@@ -19,6 +19,8 @@ echo -n -e "\nDownloading aniyomi-mpv-lib dependencies"
 readonly ANIYOMI_MPV_COMMIT="484373b7cb772d43405c4312af1ad4f508f6dbd0"
 readonly DAV1D_COMMIT="2ba57aa535896bcc8c450bbf7d0958791e38ec78"
 readonly FFMPEG_COMMIT="b08d7969c550a804a59511c7b83f2dd8cc0499b8"
+readonly GAS_PREPROCESSOR_COMMIT="ac1836309c2e77023c228b7184485597286289d3"
+readonly GAS_PREPROCESSOR_SHA256="7124d70cdecba7c5612f9a71fbf3f28514dd9c2ca3022f58ad793f88bb925fcf"
 if [[ ! -d aniyomi-mpv-lib ]]; then
   mkdir aniyomi-mpv-lib
   git -C aniyomi-mpv-lib init 1>>/dev/null 2>&1
@@ -28,7 +30,13 @@ git -C aniyomi-mpv-lib fetch --depth 1 origin "${ANIYOMI_MPV_COMMIT}" 1>>/dev/nu
 git -C aniyomi-mpv-lib checkout --detach "${ANIYOMI_MPV_COMMIT}" 1>>/dev/null 2>&1
 [[ "$(git -C aniyomi-mpv-lib rev-parse HEAD)" == "${ANIYOMI_MPV_COMMIT}" ]]
 cd aniyomi-mpv-lib/buildscripts
+sed -i \
+  "s|FFmpeg/gas-preprocessor/raw/master/gas-preprocessor.pl|FFmpeg/gas-preprocessor/raw/${GAS_PREPROCESSOR_COMMIT}/gas-preprocessor.pl|" \
+  include/download-sdk.sh
+grep -qF "${GAS_PREPROCESSOR_COMMIT}" include/download-sdk.sh
 ./download.sh 1>>/dev/null 2>&1
+
+printf '%s  %s\n' "${GAS_PREPROCESSOR_SHA256}" bin/gas-preprocessor.pl | sha256sum -c -
 
 git -C deps/dav1d fetch --depth 1 origin "${DAV1D_COMMIT}" 1>>/dev/null 2>&1
 git -C deps/dav1d checkout --detach "${DAV1D_COMMIT}" 1>>/dev/null 2>&1
@@ -40,6 +48,8 @@ git -C deps/dav1d checkout --detach "${DAV1D_COMMIT}" 1>>/dev/null 2>&1
   echo "aniyomi_mpv=$(git -C "${BASEDIR}/aniyomi-mpv-lib" rev-parse HEAD)"
   echo "dav1d=$(git -C deps/dav1d rev-parse HEAD)"
   echo "ffmpeg=$(git -C deps/ffmpeg rev-parse HEAD)"
+  echo "gas_preprocessor=${GAS_PREPROCESSOR_COMMIT}"
+  echo "gas_preprocessor_sha256=${GAS_PREPROCESSOR_SHA256}"
   echo "upstream_aar_sha256=4570a5cb8fa2c87808e81ebf4b7f3747cb5aa52b1662dc8a1c03831c37b26b89"
 } > "${BASEDIR}/SOURCE-LOCK.txt"
 for FFMPEG_PATCH in "${BASEDIR}"/tools/patches/*.patch; do

@@ -1,0 +1,86 @@
+diff --git a/libavcodec/mediacodecenc.c b/libavcodec/mediacodecenc.c
+index 3880ea2..3571a20 100644
+--- a/libavcodec/mediacodecenc.c
++++ b/libavcodec/mediacodecenc.c
+@@ -183,7 +183,8 @@ static int mediacodec_init_bsf(AVCodecContext *avctx)
+     return ret;
+ }
+ 
+-static int mediacodec_generate_extradata(AVCodecContext *avctx);
++static int mediacodec_generate_extradata(AVCodecContext *avctx,
++                                         FFAMediaFormat *format);
+ 
+ static av_cold int mediacodec_init(AVCodecContext *avctx)
+ {
+@@ -383,7 +384,7 @@ static av_cold int mediacodec_init(AVCodecContext *avctx)
+         goto bailout;
+     }
+ 
+-    ret = mediacodec_generate_extradata(avctx);
++    ret = mediacodec_generate_extradata(avctx, format);
+ 
+ bailout:
+     if (format)
+@@ -651,7 +652,40 @@ static int mediacodec_receive_dummy_pkt(AVCodecContext *avctx, AVPacket *pkt)
+     return ret;
+ }
+ 
+-static int mediacodec_generate_extradata(AVCodecContext *avctx)
++static int mediacodec_restart_after_extradata(AVCodecContext *avctx,
++                                              FFAMediaFormat *format)
++{
++    MediaCodecEncContext *s = avctx->priv_data;
++    int ret;
++
++    ret = ff_AMediaCodec_stop(s->codec);
++    if (ret) {
++        av_log(avctx, AV_LOG_ERROR,
++               "MediaCodec failed to stop after generating extradata: %s\n",
++               av_err2str(ret));
++        return ret;
++    }
++
++    s->eof_sent = 0;
++    ret = ff_AMediaCodec_getConfigureFlagEncode(s->codec);
++    ret = ff_AMediaCodec_configure(s->codec, format, s->window, NULL, ret);
++    if (ret) {
++        av_log(avctx, AV_LOG_ERROR,
++               "MediaCodec failed to reconfigure after generating extradata: %s\n",
++               av_err2str(ret));
++        return ret;
++    }
++
++    ret = ff_AMediaCodec_start(s->codec);
++    if (ret)
++        av_log(avctx, AV_LOG_ERROR,
++               "MediaCodec failed to restart after generating extradata: %s\n",
++               av_err2str(ret));
++    return ret;
++}
++
++static int mediacodec_generate_extradata(AVCodecContext *avctx,
++                                         FFAMediaFormat *format)
+ {
+     MediaCodecEncContext *s = avctx->priv_data;
+     AVPacket *pkt = NULL;
+@@ -694,10 +728,15 @@ static int mediacodec_generate_extradata(AVCodecContext *avctx)
+ 
+ bailout:
+     if (s->eof_sent) {
+-        s->eof_sent = 0;
+-        ff_AMediaCodec_flush(s->codec);
++        /* MediaCodec flush is undefined for encoders and some implementations
++         * retain GOP state, making real packets reference the dummy frame. */
++        int restart_ret = mediacodec_restart_after_extradata(avctx, format);
++        if (restart_ret >= 0)
++            s->extradata_size = 0;
++        if (ret >= 0 && restart_ret < 0)
++            ret = restart_ret;
+     }
+     av_bsf_flush(s->bsf);
+     av_packet_free(&pkt);
+     return ret;
+ }
+
+-- 
+2.39.5
