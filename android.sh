@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 # LOAD INITIAL SETTINGS
 export BASEDIR="$(pwd)"
 export FFMPEG_KIT_BUILD_TYPE="android"
@@ -24,26 +26,27 @@ if [[ ! -d aniyomi-mpv-lib ]]; then
 fi
 git -C aniyomi-mpv-lib fetch --depth 1 origin "${ANIYOMI_MPV_COMMIT}" 1>>/dev/null 2>&1
 git -C aniyomi-mpv-lib checkout --detach "${ANIYOMI_MPV_COMMIT}" 1>>/dev/null 2>&1
-cd aniyomi-mpv-lib/buildscripts || return 1
+[[ "$(git -C aniyomi-mpv-lib rev-parse HEAD)" == "${ANIYOMI_MPV_COMMIT}" ]]
+cd aniyomi-mpv-lib/buildscripts
 ./download.sh 1>>/dev/null 2>&1
 
 git -C deps/dav1d fetch --depth 1 origin "${DAV1D_COMMIT}" 1>>/dev/null 2>&1
 git -C deps/dav1d checkout --detach "${DAV1D_COMMIT}" 1>>/dev/null 2>&1
-if [[ "$(git -C deps/ffmpeg rev-parse HEAD)" != "${FFMPEG_COMMIT}" ]]; then
-  echo -e "\n(*) FFmpeg n7.1 resolved to an unexpected revision\n"
-  exit 1
-fi
+[[ "$(git -C deps/dav1d rev-parse HEAD)" == "${DAV1D_COMMIT}" ]]
+[[ "$(git -C deps/ffmpeg rev-parse HEAD)" == "${FFMPEG_COMMIT}" ]]
 
-cat > "${BASEDIR}/SOURCE-LOCK.txt" <<LOCK
-ffmpeg_kit=$(git -C "${BASEDIR}" rev-parse HEAD)
-aniyomi_mpv=${ANIYOMI_MPV_COMMIT}
-dav1d=${DAV1D_COMMIT}
-ffmpeg=${FFMPEG_COMMIT}
-upstream_aar_sha256=4570a5cb8fa2c87808e81ebf4b7f3747cb5aa52b1662dc8a1c03831c37b26b89
-LOCK
+{
+  echo "ffmpeg_kit=$(git -C "${BASEDIR}" rev-parse HEAD)"
+  echo "aniyomi_mpv=$(git -C "${BASEDIR}/aniyomi-mpv-lib" rev-parse HEAD)"
+  echo "dav1d=$(git -C deps/dav1d rev-parse HEAD)"
+  echo "ffmpeg=$(git -C deps/ffmpeg rev-parse HEAD)"
+  echo "upstream_aar_sha256=4570a5cb8fa2c87808e81ebf4b7f3747cb5aa52b1662dc8a1c03831c37b26b89"
+} > "${BASEDIR}/SOURCE-LOCK.txt"
 for FFMPEG_PATCH in "${BASEDIR}"/tools/patches/*.patch; do
   [[ -e "${FFMPEG_PATCH}" ]] || break
-  sha256sum "${FFMPEG_PATCH}" >> "${BASEDIR}/SOURCE-LOCK.txt"
+  printf 'patch_sha256=%s  tools/patches/%s\n' \
+    "$(sha256sum "${FFMPEG_PATCH}" | cut -d' ' -f1)" \
+    "$(basename "${FFMPEG_PATCH}")" >> "${BASEDIR}/SOURCE-LOCK.txt"
 done
 
 # ENABLE FFMPEG-KIT PROTOCOLS
