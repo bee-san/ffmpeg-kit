@@ -1,0 +1,126 @@
+diff --git a/libavformat/movenc.c b/libavformat/movenc.c
+index d20e45c..a3d158d 100644
+--- a/libavformat/movenc.c
++++ b/libavformat/movenc.c
+@@ -6520,6 +6520,14 @@ int ff_mov_write_packet(AVFormatContext *s, AVPacket *pkt)
+         trk = &mov->tracks[pkt->stream_index];
+     par = trk->par;
+ 
++    if (mov->mode == MODE_AVIF &&
++        par->codec_type == AVMEDIA_TYPE_VIDEO && !trk->entry &&
++        !(pkt->flags & AV_PKT_FLAG_KEY)) {
++        av_log(s, AV_LOG_ERROR,
++               "The first AVIF video packet must be a keyframe\n");
++        return AVERROR_INVALIDDATA;
++    }
++
+     ret = check_pkt(s, trk, pkt);
+     if (ret < 0)
+         return ret;
+diff --git a/libavformat/tests/movenc.c b/libavformat/tests/movenc.c
+index 2fd5c67..38af82a 100644
+--- a/libavformat/tests/movenc.c
++++ b/libavformat/tests/movenc.c
+@@ -26,6 +26,7 @@
+ #include "libavutil/mem.h"
+ 
+ #include "libavformat/avformat.h"
++#include "libavformat/movenc.h"
+ 
+ #if HAVE_UNISTD_H
+ #include <unistd.h>
+@@ -177,6 +178,85 @@ static void check_func(int value, int line, const char *msg, ...)
+ }
+ #define check(value, ...) check_func(value, __LINE__, __VA_ARGS__)
+ 
++static void test_avif_rejects_nonkey_first_packet(void)
++{
++    AVFormatContext *s = avformat_alloc_context();
++    MOVMuxContext *mov = av_mallocz(sizeof(*mov));
++    MOVTrack *trk = av_mallocz(sizeof(*trk));
++    AVStream *st;
++    AVPacket test_pkt = { 0 };
++    uint8_t data = 0;
++    uint8_t *buf = NULL;
++    int old_log_level, ret;
++
++    check(s && mov && trk, "could not allocate AVIF first-packet test state");
++    if (!s || !mov || !trk)
++        goto cleanup;
++
++    st = avformat_new_stream(s, NULL);
++    check(st != NULL, "could not allocate AVIF first-packet test stream");
++    if (!st)
++        goto cleanup;
++
++    ret = avio_open_dyn_buf(&s->pb);
++    check(ret >= 0, "could not allocate AVIF first-packet test output");
++    if (ret < 0)
++        goto cleanup;
++
++    s->priv_data = mov;
++    st->priv_data = trk;
++    mov->mode = MODE_AVIF;
++    trk->mode = MODE_AVIF;
++    trk->st = st;
++    trk->par = st->codecpar;
++    trk->start_dts = AV_NOPTS_VALUE;
++    trk->dts_shift = AV_NOPTS_VALUE;
++    trk->hint_track = -1;
++    st->codecpar->codec_type = AVMEDIA_TYPE_VIDEO;
++    st->codecpar->codec_id = AV_CODEC_ID_RAWVIDEO;
++
++    test_pkt.data = &data;
++    test_pkt.size = 1;
++    test_pkt.stream_index = 0;
++    test_pkt.pts = test_pkt.dts = 0;
++    test_pkt.duration = 1;
++
++    old_log_level = av_log_get_level();
++    av_log_set_level(AV_LOG_QUIET);
++    ret = ff_mov_write_packet(s, &test_pkt);
++    av_log_set_level(old_log_level);
++    check(ret == AVERROR_INVALIDDATA,
++          "AVIF accepted a non-key first video packet: %d", ret);
++
++cleanup:
++    if (mov && mov->mdat_buf) {
++        avio_close_dyn_buf(mov->mdat_buf, &buf);
++        mov->mdat_buf = NULL;
++    }
++    av_freep(&buf);
++    if (trk && trk->mdat_buf) {
++        avio_close_dyn_buf(trk->mdat_buf, &buf);
++        trk->mdat_buf = NULL;
++    }
++    av_freep(&buf);
++    if (s && s->pb) {
++        avio_close_dyn_buf(s->pb, &buf);
++        s->pb = NULL;
++    }
++    av_freep(&buf);
++    if (trk) {
++        av_freep(&trk->cluster);
++        av_freep(&trk->vos_data);
++    }
++    if (s && s->nb_streams)
++        s->streams[0]->priv_data = NULL;
++    if (s)
++        s->priv_data = NULL;
++    av_free(trk);
++    av_free(mov);
++    avformat_free_context(s);
++}
++
+ static void init_fps(int bf, int audio_preroll, int fps, int id3)
+ {
+     AVStream *st;
+@@ -416,6 +496,8 @@ int main(int argc, char **argv)
+         return 1;
+     }
+ 
++    test_avif_rejects_nonkey_first_packet();
++
+     // Write a fragmented file with an initial moov that actually contains some
+     // samples. One moov+mdat with 1 second of data and one moof+mdat with 1
+     // second of data.
