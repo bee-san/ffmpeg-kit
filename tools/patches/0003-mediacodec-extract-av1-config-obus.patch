@@ -1,0 +1,36 @@
+From 0ee18ff23d923fd423352868c7344a78568b0e3e Mon Sep 17 00:00:00 2001
+From: Zhao Zhili <zhilizhao@tencent.com>
+Date: Sat, 5 Oct 2024 01:54:21 +0800
+Subject: [PATCH] avcodec/mediacodecenc: Extract configOBUs from
+ AV1CodecConfigurationRecord
+
+MediaCodec can generate AV1CodecConfigurationRecord, which shouldn't
+be put into packet->data. Skip four bytes and extract configOBUs
+if it exist.
+
+Signed-off-by: Zhao Zhili <zhilizhao@tencent.com>
+---
+ libavcodec/mediacodecenc.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/libavcodec/mediacodecenc.c b/libavcodec/mediacodecenc.c
+index e76ea81236853..3880ea2fe9d22 100644
+--- a/libavcodec/mediacodecenc.c
++++ b/libavcodec/mediacodecenc.c
+@@ -429,6 +429,16 @@ static int mediacodec_receive(AVCodecContext *avctx, AVPacket *pkt)
+     }
+ 
+     if (out_info.flags & ff_AMediaCodec_getBufferFlagCodecConfig(codec)) {
++        if (avctx->codec_id == AV_CODEC_ID_AV1) {
++            // Skip AV1CodecConfigurationRecord without configOBUs
++            if (out_info.size <= 4) {
++                ff_AMediaCodec_releaseOutputBuffer(codec, index, false);
++                return mediacodec_receive(avctx, pkt);
++            }
++            out_info.size -= 4;
++            out_info.offset += 4;
++        }
++
+         ret = av_reallocp(&s->extradata, out_info.size);
+         if (ret)
+             goto bailout;

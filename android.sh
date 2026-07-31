@@ -11,11 +11,40 @@ enable_default_android_architectures
 enable_main_build
 
 # DOWNLOAD SDK & NDK FROM ANIYOMI-MPV-LIB
+# Keep the native inputs at the revisions used for the upstream 1.17 AAR. In
+# particular, 1.17.n used to clone dav1d's moving default branch.
 echo -n -e "\nDownloading aniyomi-mpv-lib dependencies"
-v_aniyomi_mpv=1.17.n
-git clone https://github.com/aniyomiorg/aniyomi-mpv-lib.git -b $v_aniyomi_mpv --depth 1 1>>/dev/null 2>&1
+readonly ANIYOMI_MPV_COMMIT="484373b7cb772d43405c4312af1ad4f508f6dbd0"
+readonly DAV1D_COMMIT="2ba57aa535896bcc8c450bbf7d0958791e38ec78"
+readonly FFMPEG_COMMIT="b08d7969c550a804a59511c7b83f2dd8cc0499b8"
+if [[ ! -d aniyomi-mpv-lib ]]; then
+  mkdir aniyomi-mpv-lib
+  git -C aniyomi-mpv-lib init 1>>/dev/null 2>&1
+  git -C aniyomi-mpv-lib remote add origin https://github.com/aniyomiorg/aniyomi-mpv-lib.git
+fi
+git -C aniyomi-mpv-lib fetch --depth 1 origin "${ANIYOMI_MPV_COMMIT}" 1>>/dev/null 2>&1
+git -C aniyomi-mpv-lib checkout --detach "${ANIYOMI_MPV_COMMIT}" 1>>/dev/null 2>&1
 cd aniyomi-mpv-lib/buildscripts || return 1
 ./download.sh 1>>/dev/null 2>&1
+
+git -C deps/dav1d fetch --depth 1 origin "${DAV1D_COMMIT}" 1>>/dev/null 2>&1
+git -C deps/dav1d checkout --detach "${DAV1D_COMMIT}" 1>>/dev/null 2>&1
+if [[ "$(git -C deps/ffmpeg rev-parse HEAD)" != "${FFMPEG_COMMIT}" ]]; then
+  echo -e "\n(*) FFmpeg n7.1 resolved to an unexpected revision\n"
+  exit 1
+fi
+
+cat > "${BASEDIR}/SOURCE-LOCK.txt" <<LOCK
+ffmpeg_kit=$(git -C "${BASEDIR}" rev-parse HEAD)
+aniyomi_mpv=${ANIYOMI_MPV_COMMIT}
+dav1d=${DAV1D_COMMIT}
+ffmpeg=${FFMPEG_COMMIT}
+upstream_aar_sha256=4570a5cb8fa2c87808e81ebf4b7f3747cb5aa52b1662dc8a1c03831c37b26b89
+LOCK
+for FFMPEG_PATCH in "${BASEDIR}"/tools/patches/*.patch; do
+  [[ -e "${FFMPEG_PATCH}" ]] || break
+  sha256sum "${FFMPEG_PATCH}" >> "${BASEDIR}/SOURCE-LOCK.txt"
+done
 
 # ENABLE FFMPEG-KIT PROTOCOLS
 cat ../../tools/protocols/libavformat_file.c >> deps/ffmpeg/libavformat/file.c

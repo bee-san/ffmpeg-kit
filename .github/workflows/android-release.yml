@@ -3,35 +3,80 @@ name: make android release
 on:
   push:
     tags:
-      - '*'
+      - '1.17.*-native'
 
 jobs:
   publish-lts-on-linux:
     name: android lts on linux
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
     defaults:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          fetch-depth: 0
       - name: set up jdk 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654
         with:
           distribution: 'temurin'
           java-version: '17'
       - name: run the build script
-        run: ./android.sh --lts --disable-arm-v7a-neon --enable-cpu-features
-      - name: copy build artifact
-        run: mv prebuilt/bundle-android-aar-lts/ffmpeg-kit/ffmpeg-kit.aar aniyomi-ffmpeg-kit-${{ github.ref_name }}.aar
+        run: |
+          set -o pipefail
+          ./android.sh --lts --disable-arm-v7a-neon --enable-cpu-features \
+            2>&1 | tee native-build.log
+      - name: package only intended native changes
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 \
+            https://github.com/jmir1/ffmpeg-kit/releases/download/1.17/aniyomi-ffmpeg-kit-1.17.aar \
+            --output upstream-1.17.aar
+          python3 scripts/package-chimahon-aar.py \
+            --upstream upstream-1.17.aar \
+            --patched prebuilt/bundle-android-aar-lts/ffmpeg-kit/ffmpeg-kit.aar \
+            --output aniyomi-ffmpeg-kit-${{ github.ref_name }}.aar \
+            --manifest AAR-ENTRY-MANIFEST.json
+      - name: record provenance and checksums
+        run: |
+          set -euo pipefail
+          {
+            echo "repository=${GITHUB_REPOSITORY}"
+            echo "commit=${GITHUB_SHA}"
+            echo "workflow_run=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo "runner_image=${ImageOS:-unknown}"
+            echo "runner_image_version=${ImageVersion:-unknown}"
+            java -version
+            android/gradlew --version
+            cat aniyomi-mpv-lib/buildscripts/sdk/android-ndk-r27c/source.properties
+          } > BUILD-PROVENANCE.txt 2>&1
+          sha256sum \
+            aniyomi-ffmpeg-kit-${{ github.ref_name }}.aar \
+            AAR-ENTRY-MANIFEST.json \
+            SOURCE-LOCK.txt \
+            BUILD-PROVENANCE.txt \
+            > SHA256SUMS
+          sha256sum --check SHA256SUMS
       - name: release artifact
-        uses: softprops/action-gh-release@v2.0.5
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b
         with:
           tag_name: ${{ github.ref_name }}
           name: aniyomi-ffmpeg-kit ${{ github.ref_name }}
           body: |
-            library version ${{ github.ref_name }}
+            Minimal Chimahon FFmpegKit 1.17 native patch release.
+
+            Only `libavcodec.so` and `libavformat.so` are replaced in the
+            verified upstream 1.17 AAR. Native inputs are pinned in
+            `SOURCE-LOCK.txt`; exact changed-entry hashes and build provenance
+            are attached. Verify all files against `SHA256SUMS`.
           files: |
             aniyomi-ffmpeg-kit-${{ github.ref_name }}.aar
+            AAR-ENTRY-MANIFEST.json
+            SOURCE-LOCK.txt
+            BUILD-PROVENANCE.txt
+            SHA256SUMS
           draft: false
           prerelease: false
       - name: print build logs
